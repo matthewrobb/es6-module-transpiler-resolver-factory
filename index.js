@@ -11,11 +11,11 @@ var fs           = require("fs"),
 function HookedResolver(paths, hooks) {
     FileResolver.call(this, paths || []);
 
-    this.phases(function(phase) {
+    ["locate", "fetch", "translate", "instantiate"].forEach(function(phase) {
         if (typeof hooks[phase] === "function") {
             this[phase] = hooks[phase];
         }
-    });
+    }, this);
 }
 
 util.inherits(HookedResolver, FileResolver);
@@ -28,9 +28,10 @@ HookedResolver.prototype.resolveModule = function(importedPath, fromModule, cont
     load.container    = container;
     load.resolver     = this;
 
-    this.phases(function(phase, prev, key) {
-        return load[key] = this[phase](prev || importedPath, load);
-    });
+    (load.resolvedPath = this.locate(importedPath, load))     !== false &&
+    (load.source       = this.fetch(load.resolvedPath, load)) !== false &&
+    (load.ast          = this.translate(load.source, load))   !== false &&
+    (load.module       = this.instantiate(load.ast, load));
 
     return load.module;
 };
@@ -58,24 +59,8 @@ HookedResolver.prototype.instantiate = function(ast, load) {
     return mod;
 };
 
-HookedResolver.prototype.phases = (function() {
-    var phases = [ "locate", "fetch", "translate", "instantiate" ];
-
-    phases.locate      = "resolvedPath";
-    phases.fetch       = "source";
-    phases.translate   = "ast";
-    phases.instantiate = "module";
-
-    return function(fn) {
-        var result;
-
-        phases.every(function(phase) {
-            result = fn.call(this, phase, result, phases[phase]);
-            return result !== false;
-        }, this);
-
-        return result;
-    };
-}());
+HookedResolver.Module     = Module;
+HookedResolver.recast     = recast;
+HookedResolver.transpiler = transpiler;
 
 module.exports = HookedResolver;
