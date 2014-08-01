@@ -1,9 +1,9 @@
 {
-  "name": "es6-module-transpiler-hooked-resolver",
+  "name": "es6-module-transpiler-resolver-factory",
   "version": "0.0.1",
   "description": "ES6 Module Transpiler - Resolver with support for custom hooks",
   "author": "Matthew Robb <matthewwrobb@gmail.com>",
-  "homepage": "https://github.com/matthewrobb/es6-module-transpiler-hooked-resolver",
+  "homepage": "https://github.com/matthewrobb/es6-module-transpiler-resolver-factory",
   "keywords": [
     "es6",
     "module",
@@ -11,14 +11,14 @@
     "resolver",
     "npm"
   ],
-  "bugs": "https://github.com/matthewrobb/es6-module-transpiler-hooked-resolver/issues",
+  "bugs": "https://github.com/matthewrobb/es6-module-transpiler-resolver-factory/issues",
   "main": "index.js",
   "files": [
     "index.js"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/matthewrobb/es6-module-transpiler-hooked-resolver.git"
+    "url": "https://github.com/matthewrobb/es6-module-transpiler-resolver-factory.git"
   },
   "license": "MIT",
   "dependencies": {

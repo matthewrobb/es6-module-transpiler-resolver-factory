@@ -8,106 +8,140 @@ var fs           = require("fs"),
     Module       = require("es6-module-transpiler/lib/module"),
     FileResolver = transpiler.FileResolver;
 
+var defineProperty           = Object.defineProperty,
+    getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor,
+    getOwnPropertyNames      = Object.getOwnPropertyNames;
+
 /**
- * Provides an es6-module-transpiler valid file resolver and optionally 
- * allows custom hooks for different resolution phases
+ * Creates a constructor function inheriting from FileResolver
+ * with custom extensions
+ * 
+ * @param  {Object} extensions
+ * @return {Function}
+ */
+function extend(extensions) {
+    var ParentResolver = isResolver(this) ? this : FileResolver;
+
+    function CustomResolver() {
+        ParentResolver.apply(this, arguments);
+    }
+
+    util.inherits(CustomResolver, ParentResolver);
+
+    getOwnPropertyNames(extensions).forEach(function(key) {
+        defineProperty(CustomResolver.prototype, key, getOwnPropertyDescriptor(extensions, key));
+    });
+
+    defineProperty(CustomResolver.prototype, "_parent", {
+        value        : ParentResolver,
+        enumerable   : false,
+        writable     : false,
+        configurable : true
+    });
+
+    CustomResolver.extend = extend;
+
+    return CustomResolver;
+}
+
+/**
+ * Checks if a constructor inherits from FileResolver
+ * 
+ * @param  {Function}  ctor
+ * @return {Boolean}
+ */
+function isResolver(ctor) {
+    return typeof ctor === "function" && ctor.prototype instanceof FileResolver;
+}
+
+/**
+ * Provides an es6-module-transpiler valid file resolver
  * 
  * @constructor
  */
-function HookedResolver(paths, hooks) {
-    FileResolver.call(this, paths || []);
+var ResolverFactory = extend({
 
-    this.super = {};
+    /**
+     * Resolves `importedPath` imported by the given module `fromModule` to a
+     * es6-module-transpiler Module instance
+     * 
+     * @param  {String} importedPath
+     * @param  {String} fromModule
+     * @param  {Container} container
+     * @return {Module}
+     */
+    resolveModule : function(importedPath, fromModule, container) {
+        var load  = {};
 
-    ["locate", "fetch", "translate", "instantiate"].forEach(function(phase) {
-        if (typeof hooks[phase] === "function") {
-            this.super[phase] = this[phase].bind(this);
-            this[phase] = hooks[phase];
+        load.importedPath = importedPath;
+        load.fromModule   = fromModule;
+        load.container    = container;
+        load.resolver     = this;
+
+        (load.resolvedPath = this.locate(importedPath, load))     !== false &&
+        (load.source       = this.fetch(load.resolvedPath, load)) !== false &&
+        (load.ast          = this.translate(load.source, load))   !== false &&
+        (load.module       = this.instantiate(load.ast, load));
+
+        return load.module;
+    },
+
+    /**
+     * Resolves `importedPath` imported by the given module `fromModule` to a
+     * resolvedPath to be used in the fetch operation
+     * 
+     * @param  {String} importedPath
+     * @param  {Object} load
+     * @return {String}
+     */
+    locate : function(importedPath, load) {
+        return this.resolvePath(importedPath, load.fromModule);
+    },
+
+    /**
+     * Retrieves module source from location `resolvedPath`
+     * 
+     * @param  {String} resolvedPath
+     * @param  {Object} load
+     * @return {String}
+     */
+    fetch : function(resolvedPath, load) {
+        if(load.module = load.container.getCachedModule(resolvedPath)) {
+            return false;
         }
-    }, this);
-}
+        return fs.readFileSync(resolvedPath);
+    },
 
-util.inherits(HookedResolver, FileResolver);
+    /**
+     * Parses module source into an es6-module-transpiler compatible ast
+     * 
+     * @param  {String} source
+     * @param  {Object} load
+     * @return {Object}
+     */
+    translate : function(source, load) {
+        return recast.parse(source, {
+            sourceFileName : path.basename(load.resolvedPath)
+        });
+    },
 
-/**
- * Resolves `importedPath` imported by the given module `fromModule` to a
- * es6-module-transpiler Module instance
- * 
- * @param  {String} importedPath
- * @param  {String} fromModule
- * @param  {Container} container
- * @return {Module}
- */
-HookedResolver.prototype.resolveModule = function(importedPath, fromModule, container) {
-    var load  = {};
-
-    load.importedPath = importedPath;
-    load.fromModule   = fromModule;
-    load.container    = container;
-    load.resolver     = this;
-
-    (load.resolvedPath = this.locate(importedPath, load))     !== false &&
-    (load.source       = this.fetch(load.resolvedPath, load)) !== false &&
-    (load.ast          = this.translate(load.source, load))   !== false &&
-    (load.module       = this.instantiate(load.ast, load));
-
-    return load.module;
-};
-
-/**
- * Resolves `importedPath` imported by the given module `fromModule` to a
- * resolvedPath to be used in the fetch operation
- * 
- * @param  {String} importedPath
- * @param  {Object} load
- * @return {String}
- */
-HookedResolver.prototype.locate = function(importedPath, load) {
-    return this.resolvePath(importedPath, load.fromModule);
-};
-
-/**
- * Retrieves module source from location `resolvedPath`
- * 
- * @param  {String} resolvedPath
- * @param  {Object} load
- * @return {String}
- */
-HookedResolver.prototype.fetch = function(resolvedPath, load) {
-    if(load.module = load.container.getCachedModule(resolvedPath)) {
-        return false;
+    /**
+     * Creates a Module instance and assigns it the ast
+     * 
+     * @param  {Object} ast
+     * @param  {Object} load
+     * @return {Module}
+     */
+    instantiate : function(ast, load) {
+        var module = new Module(load.resolvedPath, load.importedPath, load.container);
+        module.ast = ast;
+        return module;
     }
-    return fs.readFileSync(resolvedPath);
-};
+    
+});
 
-/**
- * Parses module source into an es6-module-transpiler compatible ast
- * 
- * @param  {String} source
- * @param  {Object} load
- * @return {Object}
- */
-HookedResolver.prototype.translate = function(source, load) {
-    return recast.parse(source, {
-        sourceFileName : path.basename(load.resolvedPath)
-    });
-};
+ResolverFactory.Module     = Module;
+ResolverFactory.recast     = recast;
+ResolverFactory.transpiler = transpiler;
 
-/**
- * Creates a Module instance and assigns it the ast
- * 
- * @param  {Object} ast
- * @param  {Object} load
- * @return {Module}
- */
-HookedResolver.prototype.instantiate = function(ast, load) {
-    var module = new Module(load.resolvedPath, load.importedPath, load.container);
-    module.ast = ast;
-    return module;
-};
-
-HookedResolver.Module     = Module;
-HookedResolver.recast     = recast;
-HookedResolver.transpiler = transpiler;
-
-module.exports = HookedResolver;
+module.exports = ResolverFactory;
