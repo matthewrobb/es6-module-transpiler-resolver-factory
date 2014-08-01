@@ -11,8 +11,11 @@ var fs           = require("fs"),
 function HookedResolver(paths, hooks) {
     FileResolver.call(this, paths || []);
 
+    this.super = {};
+
     ["locate", "fetch", "translate", "instantiate"].forEach(function(phase) {
         if (typeof hooks[phase] === "function") {
+            this.super[phase] = this[phase].bind(this);
             this[phase] = hooks[phase];
         }
     }, this);
@@ -21,7 +24,7 @@ function HookedResolver(paths, hooks) {
 util.inherits(HookedResolver, FileResolver);
 
 HookedResolver.prototype.resolveModule = function(importedPath, fromModule, container) {
-    var load = {};
+    var load  = {};
 
     load.importedPath = importedPath;
     load.fromModule   = fromModule;
