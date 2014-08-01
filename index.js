@@ -29,14 +29,14 @@ HookedResolver.prototype.resolveModule = function(importedPath, fromModule, cont
     load.resolver     = this;
 
     this.phases(function(phase, prev, key) {
-        return (load[key] = this[phase](prev, load)) !== false;
-    }, importedPath);
+        return load[key] = this[phase](prev || importedPath, load);
+    });
 
     return load.module;
 };
 
 HookedResolver.prototype.locate = function(importedPath, load) {
-    return this.resolvePath(importedPath, fromModule);
+    return this.resolvePath(importedPath, load.fromModule);
 };
 
 HookedResolver.prototype.fetch = function(resolvedPath, load) {
@@ -66,7 +66,9 @@ HookedResolver.prototype.phases = (function() {
     phases.translate   = "ast";
     phases.instantiate = "module";
 
-    return function(fn, result) {
+    return function(fn) {
+        var result;
+
         phases.every(function(phase) {
             result = fn.call(this, phase, result, phases[phase]);
             return result !== false;
