@@ -23,6 +23,6 @@
   "license": "MIT",
   "dependencies": {
     "es6-module-transpiler": "^0.6.0",
-    "recast": "^0.6.10"
+    "recast": "^0.7.2"
   }
 }
