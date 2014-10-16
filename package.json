@@ -22,7 +22,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "es6-module-transpiler": "^0.6.0",
-    "recast": "^0.7.2"
+    "es6-module-transpiler": "^0.8.2",
+    "recast": "^0.8.0"
   }
 }
